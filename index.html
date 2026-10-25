@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CineMatch – NLP Movie Recommender</title>
+<style>
+:root{--bg:#f6f5fb;--card:#fff;--ink:#1c1b29;--mute:#6b6a80;--line:#e3e1ef;--acc:#6d4aff;--acc2:#ff5c8a;--chip:#eeebff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12111c;--card:#1c1a2b;--ink:#f1f0fa;--mute:#9b99b5;--line:#2c2a40;--acc:#8d72ff;--chip:#2a2547;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12111c;--card:#1c1a2b;--ink:#f1f0fa;--mute:#9b99b5;--line:#2c2a40;--acc:#8d72ff;--chip:#2a2547;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px 48px}
+header{padding:36px 0 22px;text-align:center}
+h1{margin:0;font-size:clamp(28px,5vw,42px);letter-spacing:-.02em}
+h1 span{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+header p{margin:8px auto 0;max-width:560px;color:var(--mute)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 6px 28px rgba(80,60,160,.08)}
+.tabs{display:flex;gap:6px;background:var(--chip);padding:5px;border-radius:12px;margin-bottom:16px}
+.tabs button{flex:1;border:0;background:none;color:var(--mute);padding:10px;border-radius:9px;font:600 14px inherit;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+input,textarea,select{font:16px inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+input,textarea{flex:1;min-width:200px}
+textarea{width:100%;min-height:84px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--acc);outline-offset:1px}
+.go{border:0;color:#fff;background:linear-gradient(90deg,var(--acc),var(--acc2));font:700 15px inherit;padding:11px 22px;border-radius:11px;cursor:pointer}
+.go:hover{filter:brightness(1.08)}
+.hint{margin:12px 0 0;color:var(--mute);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.chip{border:1px solid transparent;background:var(--chip);color:var(--ink);border-radius:99px;padding:5px 12px;font:13px inherit;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--acc);color:#fff}
+.opts{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:14px;color:var(--mute);font-size:14px}
+.opts select{padding:6px 10px;font-size:14px}
+#msg{margin:22px 0 4px;font-size:18px;font-weight:650}
+#msg small{display:block;font-weight:400;color:var(--mute);font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-top:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:transform .15s}
+.card:hover{transform:translateY(-3px)}
+.poster{aspect-ratio:2/3;display:flex;flex-direction:column;justify-content:space-between;padding:14px;color:#fff}
+.poster b{font-size:19px;line-height:1.2;text-shadow:0 2px 8px rgba(0,0,0,.35)}
+.poster span{font-size:13px;opacity:.85}
+.body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
+.meta{font-size:12.5px;color:var(--mute)}
+.bar{height:7px;border-radius:9px;background:var(--chip);overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.sim{display:flex;justify-content:space-between;font-size:13px;font-weight:650}
+.why{display:flex;flex-wrap:wrap;gap:5px}
+.why em{font-style:normal;font-size:11.5px;background:var(--chip);border-radius:6px;padding:2px 7px}
+details{font-size:13px;color:var(--mute)}
+summary{cursor:pointer;color:var(--acc);font-weight:600}
+footer{text-align:center;color:var(--mute);font-size:12.5px;margin-top:36px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>🎬 Cine<span>Match</span></h1>
+  <p>Content-based recommendations using NLP: TF-IDF vectors and cosine similarity over plots, genres, cast and directors.</p>
+</header>
+
+<main class="panel">
+  <div class="tabs" role="tablist">
+    <button role="tab" id="t1" aria-selected="true">Similar to a movie</button>
+    <button role="tab" id="t2" aria-selected="false">Describe a plot</button>
+  </div>
+
+  <div id="p1">
+    <div class="row">
+      <input id="title" list="titles" placeholder="Type a movie, typos are OK (e.g. “incepton”)" autocomplete="off">
+      <button class="go" id="b1">Recommend</button>
+    </div>
+    <datalist id="titles"></datalist>
+    <div class="chips" id="examples"></div>
+  </div>
+
+  <div id="p2" class="hidden">
+    <textarea id="desc" placeholder="e.g. astronauts stranded in space trying to survive"></textarea>
+    <div class="row" style="margin-top:10px"><button class="go" id="b2">Find movies</button></div>
+    <div class="chips" id="ideas"></div>
+  </div>
+
+  <div class="opts">
+    <label>Results <select id="n"><option>5</option><option selected>6</option><option>8</option><option>10</option></select></label>
+    <span>Filter by genre:</span>
+  </div>
+  <div class="chips" id="genres"></div>
+</main>
+
+<div id="msg"></div>
+<div class="grid" id="out"></div>
+<footer>Demo catalogue of 36 films, vectorised in your browser. The full Python/Streamlit version scales to the TMDB 5000 dataset.</footer>
+</div>
+
+<script>
+// title, year, rating, genres, director, cast, overview
+const M=[
+["Inception",2010,8.4,"Action,Sci-Fi,Thriller","Christopher Nolan","Leonardo DiCaprio, Joseph Gordon-Levitt, Elliot Page","A thief who steals secrets from dreams is hired to plant an idea inside a powerful executive’s mind."],
+["Interstellar",2014,8.6,"Adventure,Drama,Sci-Fi","Christopher Nolan","Matthew McConaughey, Anne Hathaway, Jessica Chastain","Astronauts travel through a wormhole near Saturn searching for a new home as Earth slowly dies."],
+["The Dark Knight",2008,9.0,"Action,Crime,Drama","Christopher Nolan","Christian Bale, Heath Ledger, Aaron Eckhart","Batman faces the Joker, an anarchic criminal who pushes Gotham into chaos."],
+["The Matrix",1999,8.7,"Action,Sci-Fi","Lana Wachowski","Keanu Reeves, Laurence Fishburne, Carrie-Anne Moss","A hacker learns reality is a simulation run by machines and joins a rebellion."],
+["Blade Runner 2049",2017,8.0,"Drama,Mystery,Sci-Fi","Denis Villeneuve","Ryan Gosling, Harrison Ford, Ana de Armas","A young replicant officer uncovers a buried secret and hunts for a missing veteran."],
+["Arrival",2016,7.9,"Drama,Mystery,Sci-Fi","Denis Villeneuve","Amy Adams, Jeremy Renner, Forest Whitaker","A linguist is recruited to communicate with alien visitors before fear sparks a global war."],
+["Gravity",2013,7.7,"Drama,Sci-Fi,Thriller","Alfonso Cuarón","Sandra Bullock, George Clooney, Ed Harris","Two astronauts struggle to survive when debris destroys their shuttle and leaves them adrift in space."],
+["The Martian",2015,8.0,"Adventure,Drama,Sci-Fi","Ridley Scott","Matt Damon, Jessica Chastain, Jeff Daniels","An astronaut stranded on Mars uses science and humor to survive until rescue."],
+["Titanic",1997,7.9,"Drama,Romance","James Cameron","Leonardo DiCaprio, Kate Winslet, Billy Zane","A poor artist and a wealthy young woman fall in love aboard the doomed ocean liner."],
+["The Notebook",2004,7.8,"Drama,Romance","Nick Cassavetes","Ryan Gosling, Rachel McAdams, James Garner","A young couple’s passionate summer romance is tested by class differences and years apart."],
+["La La Land",2016,8.0,"Comedy,Drama,Music,Romance","Damien Chazelle","Ryan Gosling, Emma Stone, John Legend","A jazz pianist and an aspiring actress chase their dreams in Los Angeles while their love is tested."],
+["Whiplash",2014,8.5,"Drama,Music","Damien Chazelle","Miles Teller, J.K. Simmons, Paul Reiser","A young drummer is pushed to his limits by an abusive conservatory instructor."],
+["The Godfather",1972,9.2,"Crime,Drama","Francis Ford Coppola","Marlon Brando, Al Pacino, James Caan","The aging patriarch of a mafia family hands control of his empire to his reluctant son."],
+["Goodfellas",1990,8.7,"Biography,Crime,Drama","Martin Scorsese","Robert De Niro, Ray Liotta, Joe Pesci","The rise and fall of a mob associate over three decades in New York’s criminal underworld."],
+["The Departed",2006,8.5,"Crime,Drama,Thriller","Martin Scorsese","Leonardo DiCaprio, Matt Damon, Jack Nicholson","An undercover cop and a mole in the police race to expose each other inside Boston’s mob."],
+["Pulp Fiction",1994,8.9,"Crime,Drama","Quentin Tarantino","John Travolta, Uma Thurman, Samuel L. Jackson","Interwoven stories of hitmen, a boxer and a gangster’s wife unfold in Los Angeles."],
+["Toy Story",1995,8.3,"Animation,Adventure,Comedy,Family","John Lasseter","Tom Hanks, Tim Allen, Don Rickles","A cowboy doll feels threatened when a new spaceman toy arrives in a boy’s room."],
+["Finding Nemo",2003,8.2,"Animation,Adventure,Comedy,Family","Andrew Stanton","Albert Brooks, Ellen DeGeneres, Alexander Gould","An anxious clownfish crosses the ocean to rescue his captured son."],
+["Up",2009,8.3,"Animation,Adventure,Comedy,Family","Pete Docter","Ed Asner, Jordan Nagai, Christopher Plummer","An elderly widower ties thousands of balloons to his house and flies to South America with an unexpected stowaway."],
+["Inside Out",2015,8.1,"Animation,Adventure,Comedy,Family","Pete Docter","Amy Poehler, Phyllis Smith, Bill Hader","The emotions inside a young girl’s mind struggle to guide her through a difficult move."],
+["3 Idiots",2009,8.4,"Comedy,Drama","Rajkumar Hirani","Aamir Khan, R. Madhavan, Sharman Joshi","Two friends search for their long-lost college companion who taught them to question rote education."],
+["Dangal",2016,8.3,"Action,Biography,Drama,Sport","Nitesh Tiwari","Aamir Khan, Fatima Sana Shaikh, Sanya Malhotra","A former wrestler trains his daughters to become world-class wrestlers against social expectations."],
+["Zindagi Na Milegi Dobara",2011,8.2,"Comedy,Drama","Zoya Akhtar","Hrithik Roshan, Farhan Akhtar, Abhay Deol","Three friends on a bachelor road trip across Spain confront fears and rediscover friendship."],
+["Jurassic Park",1993,8.2,"Action,Adventure,Sci-Fi","Steven Spielberg","Sam Neill, Laura Dern, Jeff Goldblum","Scientists visit an island theme park of cloned dinosaurs until the security systems fail."],
+["Avatar",2009,7.9,"Action,Adventure,Fantasy,Sci-Fi","James Cameron","Sam Worthington, Zoe Saldana, Sigourney Weaver","A paralyzed marine on an alien moon is torn between his orders and the people he comes to love."],
+["The Fellowship of the Ring",2001,8.8,"Adventure,Drama,Fantasy","Peter Jackson","Elijah Wood, Ian McKellen, Viggo Mortensen","A hobbit and a company of allies set out to destroy a ring of terrible power."],
+["Harry Potter and the Sorcerer’s Stone",2001,7.6,"Adventure,Family,Fantasy","Chris Columbus","Daniel Radcliffe, Emma Watson, Rupert Grint","An orphaned boy discovers he is a wizard and starts school at Hogwarts."],
+["Mad Max: Fury Road",2015,8.1,"Action,Adventure,Sci-Fi","George Miller","Tom Hardy, Charlize Theron, Nicholas Hoult","In a desert wasteland, a drifter and a rebel warrior flee a tyrant across a deadly road chase."],
+["Se7en",1995,8.6,"Crime,Drama,Mystery,Thriller","David Fincher","Brad Pitt, Morgan Freeman, Gwyneth Paltrow","Two detectives hunt a serial killer who stages murders around the seven deadly sins."],
+["Gone Girl",2014,8.1,"Drama,Mystery,Thriller","David Fincher","Ben Affleck, Rosamund Pike, Neil Patrick Harris","A man becomes the prime suspect when his wife vanishes on their anniversary."],
+["The Prestige",2006,8.5,"Drama,Mystery,Sci-Fi,Thriller","Christopher Nolan","Christian Bale, Hugh Jackman, Scarlett Johansson","Two rival magicians in Victorian London wage a deadly obsession over the ultimate trick."],
+["Shutter Island",2010,8.2,"Mystery,Thriller","Martin Scorsese","Leonardo DiCaprio, Mark Ruffalo, Ben Kingsley","A marshal investigating a patient’s disappearance from a remote asylum island begins to doubt his own mind."],
+["Parasite",2019,8.5,"Comedy,Drama,Thriller","Bong Joon-ho","Song Kang-ho, Choi Woo-shik, Park So-dam","A poor family schemes its way into the household of a wealthy one with unforeseen consequences."],
+["The Social Network",2010,7.8,"Biography,Drama","David Fincher","Jesse Eisenberg, Andrew Garfield, Justin Timberlake","The story of Facebook’s founding and the lawsuits that followed."],
+["Ocean’s Eleven",2001,7.7,"Crime,Thriller","Steven Soderbergh","George Clooney, Brad Pitt, Julia Roberts","A charming thief assembles a crew to rob three Las Vegas casinos in one night."],
+["Coco",2017,8.4,"Animation,Adventure,Family,Music","Lee Unkrich","Anthony Gonzalez, Gael García Bernal, Benjamin Bratt","A music-loving boy enters the Land of the Dead to find his great-great-grandfather, a legendary singer."]
+];
+
+/* ---------- NLP pipeline: tokenise, stop-words, light stemming, TF-IDF ---------- */
+const ST=new Set("the and for with his her their its from that this who into after when while than but are was has had have not one two they them then there been being over only about out can will all any new off own such very".split(" "));
+const stem=w=>w.length>4?w.replace(/(ing|ed|es|s)$/,""):w;
+const tok=s=>s.toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(w=>w.length>2&&!ST.has(w)).map(stem);
+const nm={};
+const key=(n,p="")=>{const k=p+n.toLowerCase().replace(/[^a-z]/g,"");nm[k]=n;return k};
+const D=M.map(([t,y,r,g,d,c,o])=>({t,y,r,g:g.split(","),d,c:c.split(", "),o}));
+const docs=D.map(d=>[...tok(d.o),...d.g.flatMap(g=>[key(g,"#"),key(g,"#")]),...d.c.slice(0,3).map(n=>key(n)),key(d.d),key(d.d)]);
+const df=new Map();docs.forEach(t=>new Set(t).forEach(w=>df.set(w,(df.get(w)||0)+1)));
+const idf=new Map([...df].map(([w,c])=>[w,Math.log((D.length+1)/(c+1))+1]));
+function vec(toks){const c=new Map();toks.forEach(w=>idf.has(w)&&c.set(w,(c.get(w)||0)+1));
+  let s=0;const v=new Map();c.forEach((n,w)=>{const x=(1+Math.log(n))*idf.get(w);v.set(w,x);s+=x*x});
+  s=Math.sqrt(s)||1;v.forEach((x,w)=>v.set(w,x/s));return v}
+const V=docs.map(vec);
+function cos(a,b){let s=0;const[x,y]=a.size<b.size?[a,b]:[b,a];x.forEach((w,k)=>{if(y.has(k))s+=w*y.get(k)});return s}
+function shared(a,b){return [...a].filter(([k])=>b.has(k)).map(([k,w])=>[k,w*b.get(k)]).sort((p,q)=>q[1]-p[1]).slice(0,3).map(([k])=>nm[k]||k)}
+
+/* ---------- fuzzy title lookup: exact -> substring -> edit distance ---------- */
+function lev(a,b){const p=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let prev=p[0];p[0]=i;
+  for(let j=1;j<=b.length;j++){const t=p[j];p[j]=Math.min(p[j]+1,p[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=t}}return p[b.length]}
+const norm=s=>s.toLowerCase().replace(/[’']/g,"'").trim();
+function find(q){q=norm(q);if(!q)return -1;const T=D.map(d=>norm(d.t));let i=T.indexOf(q);if(i>=0)return i;
+  const sub=T.map((t,i)=>[i,t]).filter(([,t])=>t.includes(q)).sort((a,b)=>a[1].length-b[1].length);
+  if(q.length>=3&&sub.length)return sub[0][0];
+  let best=-1,bd=99;T.forEach((t,i)=>{const e=lev(q,t);if(e<bd){bd=e;best=i}});
+  return bd<=Math.max(2,Math.round(q.length*.3))?best:-1}
+
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+let genre=null;
+const hue=s=>[...s].reduce((h,c)=>(h*31+c.charCodeAt(0))%360,7);
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function render(items,head,sub){
+  $("msg").innerHTML=head+(sub?`<small>${sub}</small>`:"");
+  const n=+$("n").value;
+  const list=items.filter(r=>r.s>0.02&&(!genre||D[r.i].g.includes(genre))).slice(0,n);
+  if(!list.length){$("out").innerHTML="";$("msg").innerHTML=head+`<small>No close matches${genre?` in ${genre}`:""}. Try another genre or wording.</small>`;return}
+  $("out").innerHTML=list.map(({i,s,why})=>{const d=D[i],h=hue(d.t);
+    return `<article class="card"><div class="poster" style="background:linear-gradient(160deg,hsl(${h} 60% 38%),hsl(${(h+50)%360} 70% 17%))"><span>★ ${d.r.toFixed(1)}</span><div><b>${esc(d.t)}</b><br><span>${d.y}</span></div></div>
+    <div class="body"><div class="sim"><span>Match</span><span>${Math.round(s*100)}%</span></div><div class="bar"><i style="width:${Math.min(100,s*100)}%"></i></div>
+    <div class="meta">${d.g.join(" · ")}<br>Dir. ${esc(d.d)}</div>
+    ${why.length?`<div class="why">${why.map(w=>`<em>${esc(w)}</em>`).join("")}</div>`:""}
+    <details><summary>Overview</summary>${esc(d.o)}</details></div></article>`}).join("")}
+
+function recommend(){
+  const q=$("title").value,i=find(q);
+  if(!q.trim()){render([],"Type a movie title first.");return}
+  if(i<0){const sug=D.map((d,k)=>[k,lev(norm(q),norm(d.t))]).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k])=>D[k].t);
+    render([],`No movie found for “${esc(q.trim())}”.`,`Did you mean: ${sug.map(esc).join(", ")}?`);return}
+  const items=V.map((v,k)=>({i:k,s:cos(V[i],v),why:shared(V[i],v)})).filter(r=>r.i!==i).sort((a,b)=>b.s-a.s);
+  render(items,`Because you liked ${esc(D[i].t)}`,norm(q)===norm(D[i].t)?"":`Closest title match for “${esc(q.trim())}”.`)}
+
+function describe(){
+  const q=$("desc").value.trim();if(!q){render([],"Describe a movie first.");return}
+  const t=tok(q);t.slice().forEach(w=>idf.has("#"+w)&&t.push("#"+w));
+  const qv=vec(t);
+  if(!qv.size){render([],"I didn’t recognise those words.","Try plot words such as “heist”, “space”, “love” or “detective”.");return}
+  const items=V.map((v,k)=>({i:k,s:cos(qv,v),why:shared(qv,v)})).sort((a,b)=>b.s-a.s);
+  render(items,"Best matches for your description")}
+
+function tab(n){["1","2"].forEach(k=>{$("p"+k).classList.toggle("hidden",k!==String(n));$("t"+k).setAttribute("aria-selected",k===String(n))});
+  $("out").innerHTML="";$("msg").innerHTML=""}
+$("t1").onclick=()=>tab(1);$("t2").onclick=()=>tab(2);
+$("b1").onclick=recommend;$("b2").onclick=describe;
+$("title").addEventListener("keydown",e=>e.key==="Enter"&&recommend());
+$("n").onchange=()=>{$("p2").classList.contains("hidden")?($("title").value&&recommend()):($("desc").value&&describe())};
+
+$("titles").innerHTML=D.map(d=>`<option value="${esc(d.t)}">`).join("");
+const chip=(txt,fn)=>{const b=document.createElement("button");b.className="chip";b.textContent=txt;b.onclick=fn;return b};
+["Inception","Titanic","Toy Story","3 Idiots","The Godfather"].forEach(t=>$("examples").append(chip(t,()=>{$("title").value=t;recommend()})));
+["astronauts stranded in space","love story on a ship","detective hunts a serial killer","heist crew robs a casino","animated family adventure with music"]
+  .forEach(t=>$("ideas").append(chip(t,()=>{$("desc").value=t;describe()})));
+[...new Set(D.flatMap(d=>d.g))].sort().forEach(g=>{const b=chip(g,()=>{genre=genre===g?null:g;
+  [...$("genres").children].forEach(c=>c.setAttribute("aria-pressed",c.textContent===genre));
+  $("p2").classList.contains("hidden")?($("title").value&&recommend()):($("desc").value&&describe())});
+  b.setAttribute("aria-pressed","false");$("genres").append(b)});
+</script>
+</body>
+</html>
